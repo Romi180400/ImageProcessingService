@@ -1,7 +1,8 @@
 import flask
 from flask import request
 import os
-from bot import ImageProcessingBot
+from bot import ImageProcessingBot, Bot
+
 
 app = flask.Flask(__name__)
 
