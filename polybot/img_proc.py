@@ -1,5 +1,8 @@
+import os
+import random
 from pathlib import Path
 from matplotlib.image import imread, imsave
+import random
 
 
 def rgb2gray(rgb):
@@ -46,22 +49,67 @@ class Img:
         for i, row in enumerate(self.data):
             res = []
             for j in range(1, len(row)):
-                res.append(abs(row[j-1] - row[j]))
+                res.append(abs(row[j - 1] - row[j]))
 
             self.data[i] = res
 
     def rotate(self):
-        # TODO remove the `raise` below, and write your implementation
-        raise NotImplementedError()
+        result = []
+        for i, row in enumerate(self.data):
+            res = []
+            for j in range(1, len(row)):
+                res.append(self.data[j][i])
+            for k in range(0, len(res) // 2):
+                temp = res[k]
+                res[k] = res[len(res) - k - 1]
+                res[len(res) - k - 1] = temp
+            result.append(res)
+        self.data = result
 
     def salt_n_pepper(self):
-        # TODO remove the `raise` below, and write your implementation
-        raise NotImplementedError()
+        for i, row in enumerate(self.data):
+            res = []
+            for j in range(0, len(row)):
+                randomber = random.random()
+                if randomber < 0.2:
+                    res.append(255)  # Add salt noise (white)
+                elif randomber > 0.8:
+                    res.append(0)  # Add pepper noise (black)
+                else:
+                    res.append(row[j])  # Keep the original pixel value
+
+            self.data[i] = res
 
     def concat(self, other_img, direction='horizontal'):
-        # TODO remove the `raise` below, and write your implementation
-        raise NotImplementedError()
+        firstimage = self.data
+        secondimage = other_img.data
+        if (len(firstimage) != len(secondimage)) or (len(firstimage[0]) != len(secondimage[0])):
+            raise RuntimeError
+        else:
+            if direction == 'horizontal':
+                arr = []
+                for i, row in enumerate(self.data):
+                    res = []
+                    for j in range(0, len(row)):
+                        res.append(self.data[i][j])
+                    for k in range(0, len(row)):
+                        res.append(other_img.data[i][k])
+                    arr.append(res)
+                self.data = arr
 
     def segment(self):
-        # TODO remove the `raise` below, and write your implementation
-        raise NotImplementedError()
+        for i, row in enumerate(self.data):
+            res = []
+            for j in range(0, len(row)):
+                if self.data[i][j] > 100:
+                    res.append(255)
+                else:
+                    res.append(0)
+
+            self.data[i] = res
+
+
+if __name__ == "__main__":
+    my_img = Img('C:/Users/97254/Documents/Image Processing/ImageProcessingService/polybot/test/beatles.jpeg')
+    my_img.salt_n_pepper()
+    my_img.save_img()  # noisy image was saved in 'path/to/image_filtered.jpg'

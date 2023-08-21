@@ -3,7 +3,7 @@ from loguru import logger
 import os
 import time
 from telebot.types import InputFile
-from polybot.img_proc import Img
+from img_proc import Img
 
 
 class Bot:
@@ -63,7 +63,8 @@ class Bot:
     def handle_message(self, msg):
         """Bot Main message handler"""
         logger.info(f'Incoming message: {msg}')
-        self.send_text(msg['chat']['id'], f'Your original message: {msg["text"]}')
+        if 'text' in msg:
+            self.send_text(msg['chat']['id'], f'Your original message: {msg["text"]}')
 
 
 class QuoteBot(Bot):
@@ -75,4 +76,128 @@ class QuoteBot(Bot):
 
 
 class ImageProcessingBot(Bot):
-    pass
+    def __init__(self, token, telegram_chat_url):
+        super().__init__(token, telegram_chat_url)
+        self.processing_completed = True
+
+    def handle_message(self, msg):
+        if not self.processing_completed:
+            logger.info("Previous message processing is not completed. Ignoring current message.")
+            return
+
+        if "photo" in msg:
+            # If the message contains a photo, check if it also has a caption
+            if "caption" in msg:
+                caption = msg["caption"]
+                if "concat" in caption.lower():
+                    self.process_image(msg)
+                if "contour" in caption.lower():
+                    self.process_image_contur(msg)
+                if "rotate" in caption.lower():
+                    self.process_image_rotate(msg)
+                if "segment" in caption.lower():
+                    self.process_image_segment(msg)
+                if "salt and pepper" in caption.lower():
+                    self.process_image_salt_n_pepper(msg)
+            else:
+                self.send_text(msg['chat']['id'],
+                f'Please one of the following captions to alternate the picture: concat, conture, salt and pepper, segment, rotate.')
+        elif "text" in msg:
+            super().handle_message(msg)
+
+    def process_image(self, msg):
+        self.processing_completed = False
+
+        # Download the two photos sent by the user
+        image_path = self.download_user_photo(msg)
+        another_image_path = self.download_user_photo(msg)
+
+        # Create two different Img objects from the downloaded images
+        image = Img(image_path)
+        another_image = Img(another_image_path)
+
+        # Process the image using your custom methods (e.g., apply filter)
+        image.concat(another_image)  # Concatenate the two images
+
+        # Save the processed image to the specified folder
+        processed_image_path = image.save_img()
+
+        if processed_image_path is not None:
+            # Send the processed image back to the user
+            self.send_photo(msg['chat']['id'], processed_image_path)
+
+        self.processing_completed = True
+
+    def process_image_contur(self, msg):
+        self.processing_completed = False
+
+        # Download the two photos sent by the user
+        image_path = self.download_user_photo(msg)
+
+        # Create two different Img objects from the downloaded images
+        image = Img(image_path)
+
+        # Process the image using your custom methods (e.g., apply filter)
+        image.contour()  # contur the image
+
+        # Save the processed image to the specified folder
+        processed_image_path = image.save_img()
+
+        if processed_image_path is not None:
+            # Send the processed image back to the user
+            self.send_photo(msg['chat']['id'], processed_image_path)
+
+        self.processing_completed = True
+
+    def process_image_rotate(self, msg):
+        self.processing_completed = False
+
+        # Download the two photos sent by the user
+        image_path = self.download_user_photo(msg)
+
+        # Create two different Img objects from the downloaded images
+        image = Img(image_path)
+
+        # Process the image using your custom methods (e.g., apply filter)
+        image.rotate()  # rotate the image
+
+        # Save the processed image to the specified folder
+        processed_image_path = image.save_img()
+
+        if processed_image_path is not None:
+            # Send the processed image back to the user
+            self.send_photo(msg['chat']['id'], processed_image_path)
+
+        self.processing_completed = True
+
+    def process_image_salt_n_pepper(self, msg):
+        self.processing_completed = False
+
+        image_path = self.download_user_photo(msg)
+
+        image = Img(image_path)
+
+        image.salt_n_pepper()
+
+        processed_image_path = image.save_img()
+
+        if processed_image_path is not None:
+            self.send_photo(msg['chat']['id'], processed_image_path)
+
+            self.processing_completed = True
+
+    def process_image_segment(self, msg):
+        self.processing_completed = False
+
+        image_path = self.download_user_photo(msg)
+
+        image = Img(image_path)
+
+        image.segment()
+
+        processed_image_path = image.save_img()
+
+        if processed_image_path is not None:
+            self.send_photo(msg['chat']['id'], processed_image_path)
+
+        self.processing_completed = True
