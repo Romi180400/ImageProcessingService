@@ -1,9 +1,13 @@
+import requests
 import telebot
 from loguru import logger
 import os
 import time
 from telebot.types import InputFile
 from polybot.img_proc import Img
+import logging
+import boto3
+from botocore.exceptions import ClientError
 
 
 class Bot:
@@ -101,7 +105,7 @@ class ImageProcessingBot(Bot):
                     self.process_image_salt_n_pepper(msg)
             else:
                 self.send_text(msg['chat']['id'],
-                f'Please one of the following captions to alternate the picture: concat, conture, salt and pepper, segment, rotate.')
+                               f'Please one of the following captions to alternate the picture: concat, conture, salt and pepper, segment, rotate.')
         elif "text" in msg:
             super().handle_message(msg)
 
@@ -201,3 +205,36 @@ class ImageProcessingBot(Bot):
             self.send_photo(msg['chat']['id'], processed_image_path)
 
         self.processing_completed = True
+
+
+class ObjectDetectionBot(Bot):
+
+    def __init__(self, token, telegram_chat_url):
+        super().__init__(token, telegram_chat_url)
+        self.s3_client = boto3.client('s3')
+
+    def request_yolo5_prediction(self, img_name):
+        yolo5_api_url = "http://localhost:8081/predict"
+        response = requests.post(f"{yolo5_api_url}?imgName={img_name}")
+        return response.json()
+
+    def handle_message(self, msg):
+        logger.info(f'Incoming message: {msg}')
+
+        if self.is_current_msg_photo(msg):
+            photo_path = self.download_user_photo(msg)
+            bucket_name = 'legoape'
+            object_name = f'telegram_photos/{photo_path}'
+            try:
+                self.s3_client.upload_file(photo_path, bucket_name, object_name)
+                logger.info(f'Successfully uploaded {photo_path} to {bucket_name}/{object_name}')
+
+                prediction_result = self.request_yolo5_prediction(object_name)
+
+                self.send_text(msg['chat']['id'], f'prediction result: {prediction_result}')
+            except ClientError as e:
+                logger.error(f'An error occurred: {e}')
+                self.send_text(msg['chat']['id'], 'An error occurred while processing your request.')
+
+    # TODO send a request to the `yolo5` service for prediction
+    # TODO send results to the Telegram end-user
