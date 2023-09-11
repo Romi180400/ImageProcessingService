@@ -2,7 +2,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-
+import uuid
 import boto3
 import yaml
 from detect import run
@@ -11,15 +11,11 @@ from loguru import logger
 from pymongo.mongo_client import MongoClient
 
 images_bucket = os.environ['BUCKET_NAME']
-s3 = boto3.client('s3')
-mongo_client = MongoClient('mongodb://localhost:27107/')
-db = mongo_client['prediction_db']
-collection = db['predictions']
-
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
 
+s3 = boto3.client('s3')
 
 app = Flask(__name__)
 
@@ -68,11 +64,13 @@ def predict():
 
     new_img_name = f"predicted_{imageFinalName}"
     # predicted_img_path = f'predicted_{new_img_name}'
-    os.rename(f'/usr/src/app/static/data/{prediction_id}/{imageFinalName}', f'/usr/src/app/static/data/{prediction_id}/{new_img_name}')
+    os.rename(f'/usr/src/app/static/data/{prediction_id}/{imageFinalName}',
+              f'/usr/src/app/static/data/{prediction_id}/{new_img_name}')
     predicted_for_upload = '/'.join(img_name.split('/')[:-1]) + f'/{new_img_name}'
     new_local_to_uplaod = f'/usr/src/app/static/data/{prediction_id}/{new_img_name}'
     s3.upload_file(new_local_to_uplaod, images_bucket, predicted_for_upload)
-    os.rename(f'/usr/src/app/static/data/{prediction_id}/{new_img_name}',f'/usr/src/app/static/data/{prediction_id}/{imageFinalName}')
+    os.rename(f'/usr/src/app/static/data/{prediction_id}/{new_img_name}',
+              f'/usr/src/app/static/data/{prediction_id}/{imageFinalName}')
 
     # Parse prediction labels and create a summary
     pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
@@ -99,9 +97,9 @@ def predict():
         }
 
         # TODO store the prediction_summary in MongoDB
-        collection.insert_one(prediction_summary)
+        # collection.insert_one(prediction_summary)
 
-        return prediction_summary.json()
+        return prediction_summary
     else:
         return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404
 

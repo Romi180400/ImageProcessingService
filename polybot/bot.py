@@ -216,7 +216,7 @@ class ObjectDetectionBot(Bot):
     def request_yolo5_prediction(self, img_name):
         yolo5_api_url = "http://localhost:8081/predict"
         response = requests.post(f"{yolo5_api_url}?imgName={img_name}")
-        return response.json()
+        return response
 
     def handle_message(self, msg):
         logger.info(f'Incoming message: {msg}')

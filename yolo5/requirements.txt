@@ -1,10 +1,9 @@
-boto3
-pymongo[srv]
 flask
 pyyaml
 loguru
 
 # testing
-
+boto3
+pymongo[srv]
 pylint
 pytest
