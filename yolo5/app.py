@@ -2,15 +2,23 @@ import os
 import time
 import uuid
 from pathlib import Path
-import uuid
+
 import boto3
+import pymongo
 import yaml
+import json
+from bson import ObjectId
 from detect import run
 from flask import Flask, request, jsonify
 from loguru import logger
-from pymongo.mongo_client import MongoClient
 
 images_bucket = os.environ['BUCKET_NAME']
+database_name = 'mydb'
+mongodb_uri = f'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/{database_name}?replicaSet=myReplicaSet'
+collection_name = 'predictions'
+client = pymongo.MongoClient(mongodb_uri)
+db = client[database_name]
+collection = db[collection_name]
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
@@ -18,6 +26,13 @@ with open("data/coco128.yaml", "r") as stream:
 s3 = boto3.client('s3')
 
 app = Flask(__name__)
+
+
+class ObjectIdEconder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        return json.JSONEncoder.default(self, o)
 
 
 @app.route('/health', methods=['GET'])
@@ -58,7 +73,7 @@ def predict():
 
     # This is the path for the predicted image with labels
     # The predicted image typically includes bounding boxes drawn around the detected objects, along with class labels and possibly confidence scores.
-    predicted_img_path = Path(f'static/data/{prediction_id}/{imageFinalName}')
+    predicted_img_path = f'static/data/{prediction_id}/{imageFinalName}'
 
     # TODO Uploads the predicted image (predicted_img_path) to S3 (be careful not to override the original image).
 
@@ -72,8 +87,11 @@ def predict():
     os.rename(f'/usr/src/app/static/data/{prediction_id}/{new_img_name}',
               f'/usr/src/app/static/data/{prediction_id}/{imageFinalName}')
 
+    logger.info(f'prediction: {prediction_id}/{original_img_path}. before pred_summary')
+
     # Parse prediction labels and create a summary
-    pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
+    file_no_ext = imageFinalName.split('.')[0]
+    pred_summary_path = Path(f'static/data/{prediction_id}/labels/{file_no_ext}.txt')
     if pred_summary_path.exists():
         with open(pred_summary_path) as f:
             labels = f.read().splitlines()
@@ -95,10 +113,13 @@ def predict():
             'labels': labels,
             'time': time.time()
         }
+        logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{prediction_summary}')
 
         # TODO store the prediction_summary in MongoDB
-        # collection.insert_one(prediction_summary)
-
+        logger.info("Writing to mongo")
+        json_encoded_prediction_summary = json.dumps(prediction_summary, cls=ObjectIdEconder)
+        collection.insert_one({'prediction_summary': json_encoded_prediction_summary})
+        logger.info("write done")
         return prediction_summary
     else:
         return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404

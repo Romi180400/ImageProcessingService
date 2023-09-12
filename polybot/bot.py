@@ -10,6 +10,10 @@ import boto3
 from botocore.exceptions import ClientError
 
 
+images_bucket = os.environ['BUCKET_NAME']
+
+
+
 class Bot:
 
     def __init__(self, token, telegram_chat_url):
