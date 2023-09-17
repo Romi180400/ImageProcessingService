@@ -1,0 +1,102 @@
+version: "3"
+services:
+ mongo1:
+   image: mongo:4.4
+   container_name: mongo1
+   depends_on:
+     - mongo2
+     - mongo3
+   command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo1"]
+   healthcheck:
+     test: test $$(echo "rs.initiate({_id:'my-replica-set',members:[{_id:0,host:\"mongo1\"},{_id:1,host:\"mongo2\"},{_id:2,host:\"mongo3\"}]}).ok || rs.status().ok" | mongo --quiet) -eq 1
+     interval: 10s
+     start_period: 30s
+   ports:
+     - "27017:27017"
+   volumes:
+     - mongo1_data:/data/db
+   networks:
+     - mongoCluster
+     - telebotNet
+
+ mongo2:
+   image: mongo:4.4
+   container_name: mongo2
+   command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo1"]
+   ports:
+     - "27018:27017"
+   volumes:
+     - mongo2_data:/data/db
+   networks:
+     - mongoCluster
+     - telebotNet
+
+ mongo3:
+   image: mongo:4.4
+   container_name: mongo3
+   command: ["mongod", "--replSet", "myReplicaSet", "--bind_ip", "localhost,mongo1"]
+   ports:
+     - "27019:27017"
+   volumes:
+     - mongo3_data:/data/db
+   networks:
+     - mongoCluster
+     - telebotNet
+
+
+ yolo5:
+   image: 352708296901.dkr.ecr.eu-west-3.amazonaws.com/legorepo-myolo5:latest
+   container_name: yolo5romi
+   secrets:
+     - bucket_name
+   environment:
+     - BUCKET_NAME_FILE=/run/secrets/bucket_name
+   ports:
+     - "8081:8081"
+   networks:
+     - telebotNet
+   depends_on:
+     - mongo1
+
+ polybot:
+   image: 352708296901.dkr.ecr.eu-west-3.amazonaws.com/legorepo-polyromi
+   container_name: polybotromi
+   secrets:
+     - telegram_token
+     - bucket_name
+     - telegram_app_url
+   environment:
+     - BUCKET_NAME_FILE=/run/secrets/bucket_name
+     - TELEGRAM_TOKEN_FILE=/run/secrets/telegram_token
+     - TELEGRAM_APP_URL_FILE=/run/secrets/telegram_app_url
+     - YOLO5_NAME=yolo5romi
+   ports:
+     - "8443:8443"
+   networks:
+     - telebotNet
+   depends_on:
+     - yolo5
+
+networks:
+  mongoCluster:
+    driver: bridge
+  telebotNet:
+    driver: bridge
+
+volumes:
+  mongo1_data:
+    driver: local
+  mongo2_data:
+    driver: local
+  mongo3_data:
+    driver: local
+
+secrets:
+  bucket_name:
+    file: ./bucket_name.secret
+  telegram_token:
+    file: ./telegram_token.secret
+  telegram_app_url:
+    file: ./telegram_app_url.secret
+
+

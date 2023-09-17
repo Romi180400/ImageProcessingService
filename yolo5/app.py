@@ -12,7 +12,12 @@ from detect import run
 from flask import Flask, request, jsonify
 from loguru import logger
 
-images_bucket = os.environ['BUCKET_NAME']
+
+#images_bucket = os.environ['BUCKET_NAME']
+BUCKET_NAME_FILE = os.environ['BUCKET_NAME_FILE']
+with open(BUCKET_NAME_FILE, 'r') as file:
+    BUCKET_NAME = file.read().rstrip()
+
 database_name = 'mydb'
 mongodb_uri = f'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/{database_name}?replicaSet=myReplicaSet'
 collection_name = 'predictions'
@@ -117,8 +122,9 @@ def predict():
 
         # TODO store the prediction_summary in MongoDB
         logger.info("Writing to mongo")
-        json_encoded_prediction_summary = json.dumps(prediction_summary, cls=ObjectIdEconder)
-        collection.insert_one({'prediction_summary': json_encoded_prediction_summary})
+        insert_id = collection.insert_one(prediction_summary)
+        logger.info(f'prediction: {prediction_id}/{original_img_path}. Written to mongodb cluster. ID:{insert_id}')
+        prediction_summary.pop('_id')
         logger.info("write done")
         return prediction_summary
     else:

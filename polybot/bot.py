@@ -3,15 +3,20 @@ import telebot
 from loguru import logger
 import os
 import time
+
 from telebot.types import InputFile
 from polybot.img_proc import Img
-import logging
 import boto3
 from botocore.exceptions import ClientError
+import pymongo
 
-
-images_bucket = os.environ['BUCKET_NAME']
-
+images_bucket = 'legoape'
+database_name = 'mydb'
+mongodb_uri = f'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/{database_name}?replicaSet=myReplicaSet'
+collection_name = 'predictions'
+client = pymongo.MongoClient(mongodb_uri)
+db = client[database_name]
+collection = db[collection_name]
 
 
 class Bot:
@@ -218,9 +223,26 @@ class ObjectDetectionBot(Bot):
         self.s3_client = boto3.client('s3')
 
     def request_yolo5_prediction(self, img_name):
-        yolo5_api_url = "http://localhost:8081/predict"
-        response = requests.post(f"{yolo5_api_url}?imgName={img_name}")
-        return response
+        cont_yolo5_name = os.environ['YOLO5_NAME']
+        yolo5_api_url = f'http://{cont_yolo5_name}:8081/predict'
+        try:
+            response = requests.post(f"{yolo5_api_url}?imgName={img_name}")
+            return response
+        except requests.exceptions.HTTPError as e:
+            logger.info(f'yolo requests Error: {e}')
+            response.raise_for_status()
+            return None
+
+    def count_object_prediction(self, json_summary):
+        summary_labels = json_summary['labels']
+        counted_objects = {}
+        for item in summary_labels:
+            counted_objects[item['class']] = counted_objects.get(item['class'], 0) + 1
+        formatted_message = ''
+        for key, value in counted_objects.items():
+            formatted_key = key.capitalize()
+            formatted_message += f'{formatted_key}: {value}\n'
+        return formatted_message
 
     def handle_message(self, msg):
         logger.info(f'Incoming message: {msg}')
@@ -229,16 +251,23 @@ class ObjectDetectionBot(Bot):
             photo_path = self.download_user_photo(msg)
             bucket_name = 'legoape'
             object_name = f'telegram_photos/{photo_path}'
-            try:
-                self.s3_client.upload_file(photo_path, bucket_name, object_name)
-                logger.info(f'Successfully uploaded {photo_path} to {bucket_name}/{object_name}')
+        try:
+            self.s3_client.upload_file(photo_path, bucket_name, object_name)
+            logger.info(f'Successfully uploaded {photo_path} to {bucket_name}/{object_name}')
 
-                prediction_result = self.request_yolo5_prediction(object_name)
+            prediction_result = self.request_yolo5_prediction(object_name)
+            if prediction_result is None:
+                url_objects = print("https://github.com/ultralytics/yolov5/discussions/7370")
+                self.send_text(msg['chat']['id'],
+                               f'No predicitons found, please try upload another image contains some of the following list objects: {url_objects}')
+            else:
+                prediction_data = prediction_result.json()
+                counted_prediction_result = self.count_object_prediction(prediction_data)
+                self.send_text(msg['chat']['id'], f'Predicted Objects: \n{counted_prediction_result}')
 
-                self.send_text(msg['chat']['id'], f'prediction result: {prediction_result}')
-            except ClientError as e:
-                logger.error(f'An error occurred: {e}')
-                self.send_text(msg['chat']['id'], 'An error occurred while processing your request.')
-
-    # TODO send a request to the `yolo5` service for prediction
-    # TODO send results to the Telegram end-user
+        except ClientError as e:
+            logger.error(f'An error occurred: {e}')
+            self.send_text(msg['chat']['id'], 'An error occurred while processing your request.')
+        except Exception as e:
+            logger.error(f'Unexceptional: error: {e}')
+            self.send_text(msg['chat']['id'], 'An unexpected error occurred, Please try again.')
