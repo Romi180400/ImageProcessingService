@@ -1,27 +1,19 @@
-import requests
-import telebot
-from loguru import logger
 import os
 import time
 
-from telebot.types import InputFile
-from polybot.img_proc import Img
 import boto3
+import requests
+import telebot
 from botocore.exceptions import ClientError
-import pymongo
+from loguru import logger
+from telebot.types import InputFile
 
-images_bucket = 'legoape'
-database_name = 'mydb'
-mongodb_uri = f'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/{database_name}?replicaSet=myReplicaSet'
-collection_name = 'predictions'
-client = pymongo.MongoClient(mongodb_uri)
-db = client[database_name]
-collection = db[collection_name]
+from polybot.img_proc import Img
 
 
 class Bot:
 
-    def __init__(self, token, telegram_chat_url):
+    def __init__(self, token, telegram_chat_url, bucket_name, yolo5_cont_name):
         # create a new instance of the TeleBot class.
         # all communication with Telegram servers are done using self.telegram_bot_client
         self.telegram_bot_client = telebot.TeleBot(token)
@@ -34,6 +26,9 @@ class Bot:
         self.telegram_bot_client.set_webhook(url=f'{telegram_chat_url}/{token}/', timeout=60)
 
         logger.info(f'Telegram Bot information\n\n{self.telegram_bot_client.get_me()}')
+
+        self.bucket_name = bucket_name
+        self.yolo5_cont_name = yolo5_cont_name
 
     def send_text(self, chat_id, text):
         self.telegram_bot_client.send_message(chat_id, text)
@@ -218,13 +213,14 @@ class ImageProcessingBot(Bot):
 
 class ObjectDetectionBot(Bot):
 
-    def __init__(self, token, telegram_chat_url):
-        super().__init__(token, telegram_chat_url)
+    def __init__(self, token, telegram_chat_url, bucket_name, yolo5_cont_name):
+        super().__init__(token, telegram_chat_url, bucket_name, yolo5_cont_name)
+        self.processing_completed = True
         self.s3_client = boto3.client('s3')
 
     def request_yolo5_prediction(self, img_name):
-        cont_yolo5_name = os.environ['YOLO5_NAME']
-        yolo5_api_url = f'http://{cont_yolo5_name}:8081/predict'
+        yolo5_cont_name = self.yolo5_cont_name
+        yolo5_api_url = f'http://{yolo5_cont_name}:8081/predict'
         try:
             response = requests.post(f"{yolo5_api_url}?imgName={img_name}")
             return response
@@ -249,7 +245,7 @@ class ObjectDetectionBot(Bot):
 
         if self.is_current_msg_photo(msg):
             photo_path = self.download_user_photo(msg)
-            bucket_name = 'legoape'
+            bucket_name = self.bucket_name
             object_name = f'telegram_photos/{photo_path}'
         try:
             self.s3_client.upload_file(photo_path, bucket_name, object_name)

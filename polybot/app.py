@@ -2,13 +2,12 @@ import os
 
 import flask
 from flask import request
+from loguru import logger
 
 from bot import ObjectDetectionBot
 
 app = flask.Flask(__name__)
 
-# TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
-# TELEGRAM_APP_URL = os.environ['TELEGRAM_APP_URL']
 TELEGRAM_TOKEN_FILE = os.environ['TELEGRAM_TOKEN_FILE']
 with open(TELEGRAM_TOKEN_FILE, 'r') as file:
     TELEGRAM_TOKEN = file.read().rstrip()
@@ -37,6 +36,6 @@ def webhook():
 
 
 if __name__ == "__main__":
-
-    bot = ObjectDetectionBot(TELEGRAM_TOKEN, TELEGRAM_APP_URL)
-app.run(host='0.0.0.0', port=8443)
+    logger.info(f'{TELEGRAM_TOKEN} {TELEGRAM_APP_URL} {BUCKET_NAME} {YOLO5_CONT_NAME}')
+    bot = ObjectDetectionBot(TELEGRAM_TOKEN, TELEGRAM_APP_URL, BUCKET_NAME, YOLO5_CONT_NAME)
+    app.run(host='0.0.0.0', port=8443)

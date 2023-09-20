@@ -12,11 +12,9 @@ from detect import run
 from flask import Flask, request, jsonify
 from loguru import logger
 
-
-#images_bucket = os.environ['BUCKET_NAME']
 BUCKET_NAME_FILE = os.environ['BUCKET_NAME_FILE']
 with open(BUCKET_NAME_FILE, 'r') as file:
-    BUCKET_NAME = file.read().rstrip()
+    images_bucket = file.read().rstrip()
 
 database_name = 'mydb'
 mongodb_uri = f'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/{database_name}?replicaSet=myReplicaSet'
@@ -24,6 +22,7 @@ collection_name = 'predictions'
 client = pymongo.MongoClient(mongodb_uri)
 db = client[database_name]
 collection = db[collection_name]
+
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
